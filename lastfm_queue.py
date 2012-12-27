@@ -129,8 +129,10 @@ class LastFmQueuePlugin (GObject.Object, Peas.Activatable):
 			self.set_entry(entry)
 
 	def set_entry (self, entry):
-		if entry == self.current_entry or not entry:
+		# Bail unless we are at (or below) a low-water mark
+		if not self.get_queue_count() <= randint(3, 5):
 			return
+
 		self.current_entry = entry
 		title = unicode( entry.get_string(RB.RhythmDBPropType.TITLE ), 'utf-8' )
 		artist = unicode( entry.get_string(RB.RhythmDBPropType.ARTIST ), 'utf-8' )
@@ -151,13 +153,21 @@ class LastFmQueuePlugin (GObject.Object, Peas.Activatable):
 		self.similar_data = data
 		dom = minidom.parseString(data)
 		tracks = dom.getElementsByTagName('track')
+		# XXX: Order by least-played?
+		# XXX: Order by rating?
 		shuffle(tracks)
+
+		target_tracks = randint(3, 5)
+		tracks_added = 0
+
 		for track in tracks:
 			names = track.getElementsByTagName('name')
 			title = names[0].firstChild.data.encode( 'utf-8' )
 			artist = names[1].firstChild.data.encode( 'utf-8' )
 			
 			if self.find_track(artist, title):
+				tracks_added += 1
+			if tracks_added >= target_tracks:
 				break
 
 	def find_track(self, artist, title):
@@ -180,3 +190,6 @@ class LastFmQueuePlugin (GObject.Object, Peas.Activatable):
 			return True
 		else:
 			return False
+
+	def get_queue_count(self):
+		return len(self.shell.get_property('queue_source').props.query_model)
